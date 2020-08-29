@@ -1,0 +1,9 @@
+#!/bin/ash
+set -e
+echo mdclean running
+if [[ ! -d /run/spawn-fcgi ]] ; then
+mkdir /run/spawn-fcgi
+fi
+cd /home/app
+exec spawn-fcgi -U nginx -G nginx -s /run/spawn-fcgi/mdclean.sock-1 -n ./mdclean
+

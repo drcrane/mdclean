@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "mdclean terminated"
+s6-svscanctl -t /s6
+

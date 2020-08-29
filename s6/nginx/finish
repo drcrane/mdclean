@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "nginx terminated"
+s6-svscanctl -t /s6
+
