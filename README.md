@@ -12,7 +12,7 @@ Running the Application
 The application requires the fcgi library and header files. These should 
 be available in most distributions and in Alpine it is `fcgi-dev`. Also
 a local instance of some fcgi compatible server will need to be configured
-for nginx see the settings in `nginx/default.conf` for an example.
+for nginx see the settings in `nginx/nginx.conf.template` for an example.
 
     make appsrc/mdclean
     spawn-fcgi -U nginx -G nginx -s /run/spawn-fcgi/mdclean.sock-1 -n ./mdclean
