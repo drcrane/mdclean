@@ -2,7 +2,7 @@ FROM alpine:3.11
 
 WORKDIR /home/build
 
-RUN apk add --no-cache alpine-sdk fcgi-dev
+RUN apk add --no-cache build-base fcgi-dev
 
 COPY Makefile .
 ADD appsrc/*.c appsrc/
