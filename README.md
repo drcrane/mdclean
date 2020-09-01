@@ -20,7 +20,7 @@ for nginx see the settings in `nginx/nginx.conf.template` for an example.
 ### Docker
 
     docker build --tag mdclean:0.0.1 --file Dockerfile .
-    docker run --rm -i -t -e PORT=8080 mdclean:0.0.1
+    docker run --rm -i -t -p 8080:8080 -e PORT=8080 mdclean:0.0.1
 
 ### Heroku
 
