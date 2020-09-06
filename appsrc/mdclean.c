@@ -83,6 +83,18 @@ finish:
 	return res;
 }
 
+/*
+ * Determine the users request and act appropriately
+ * Support for:
+ *  GET test
+ *  GET posttest
+ *  POST posttest
+ *  GET <anything else>
+ *  POST <anything else>
+ *  Other Verbs return a 405
+ * These paths are taken from PATH_INFO and so are relative.
+ * e.g. a GET request to /mdclean/test would set PATH_INFO to test.
+ */
 int process_request(FCGX_Request * request) {
 	char * request_method = FCGX_GetParam("REQUEST_METHOD", request->envp);
 	// https://nginx.org/en/docs/http/ngx_http_fastcgi_module.html#fastcgi_split_path_info
@@ -135,19 +147,29 @@ int process_request(FCGX_Request * request) {
 		if (path_info != NULL && strcmp(path_info, "posttest") == 0) {
 			save_posted_data(request);
 		} else {
-			goto send_404;
+send_404:
+			FCGX_FPrintF(request->out,
+					"Status: 404\r\n"
+					"Content-Type: text/html\r\n"
+					"\r\n"
+					"<!DOCTYPE html>\r\n"
+					"<html><head><meta charset=\"utf-8\"></head><body>\r\n"
+					"<h1>File Not Found</h1>\r\n"
+					"<p>For a 200 response try sending a GET to test</p>\r\n"
+					"</body></html>\r\n");
 		}
 	} else {
-send_404:
+		/* HTTP Status 405 Method Not Allowed for unsupported verbs */
 		FCGX_FPrintF(request->out,
-				"Status: 404\r\n"
+				"Status: 405\r\n"
 				"Content-Type: text/html\r\n"
 				"\r\n"
 				"<!DOCTYPE html>\r\n"
 				"<html><head><meta charset=\"utf-8\"></head><body>\r\n"
-				"<h1>File Not Found</h1>\r\n"
-				"<p>For a 200 response try sending a GET to test</p>\r\n"
-				"</body></html>\r\n");
+				"<h1>Method Not Allowed</h1>\r\n"
+				"<p>Requested Method: <code>%s</code></p>\r\n"
+				"</body></html>\r\n",
+				request_method);
 	}
 finish:
 	FCGX_FFlush(request->out);
