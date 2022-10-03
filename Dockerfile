@@ -1,4 +1,4 @@
-FROM alpine:3.11
+FROM alpine:3.13
 
 WORKDIR /home/build
 
@@ -9,7 +9,7 @@ ADD appsrc/*.c appsrc/
 
 RUN make appsrc/mdclean
 
-FROM alpine:3.11
+FROM alpine:3.13
 
 WORKDIR /home/app
 

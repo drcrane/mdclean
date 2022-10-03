@@ -1,2 +1,4 @@
+*.c text eol=lf
+*.h text eol=lf
 *.jpg  -text binary -diff
 
