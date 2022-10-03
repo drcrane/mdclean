@@ -5,42 +5,36 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "dynstring.h"
+#include "mimedecoder.h"
+#include "formdecoder.h"
+#include "errorinfo.h"
+#include "strutils.h"
 #include "fcgiapp.h"
 
 #define READ_BUFFER_SIZE 8192
 
-/*
- * Receive all the data from the input stream and write it to a file
- */
-int save_posted_data(FCGX_Request * req) {
-	char * read_buffer = NULL;
+int process_posted_data(FCGX_Request * req) {
+	char * error = "NO ERROR DETECTED";
 	char * content_type;
-	char * temp_filename = NULL;
-	int res = -1;
-	int fd = -1;
-	size_t bytes_read, bytes_read_total;
-	ssize_t bytes_written;
+	formdecoder_context * fd_ctx;
+	errorinfo_context * ei_ctx = NULL;
+	int rc;
 	content_type = FCGX_GetParam("CONTENT_TYPE", req->envp);
-	if (content_type == NULL) { goto error; }
-	read_buffer = malloc(READ_BUFFER_SIZE);
-	if (!read_buffer) { goto error; }
-	temp_filename = strdup("/tmp/mdclean_data.XXXXXX");
-	if (!temp_filename) { goto error; }
-	fd = mkstemp(temp_filename);
-	if (fd == -1) { goto error; }
-	bytes_read_total = 0;
-	do {
-		// Despite the name this function is binary safe.
-		bytes_read = FCGX_GetStr(read_buffer, READ_BUFFER_SIZE, req->in);
-		if (bytes_read) {
-			bytes_written = write(fd, read_buffer, bytes_read);
-			if (bytes_written != bytes_read) {
-				goto error;
-			}
-			bytes_read_total += bytes_read;
-		}
-	} while (bytes_read);
-	res = 0;
+	if (content_type) {
+		fprintf(stdout, "Content-Type: %s\n", content_type);
+	}
+	if (content_type == NULL || !strutils_begins_with(content_type, "multipart/form-data")) {
+		error = "invalid or unsupplied Content-Type header";
+		goto error;
+	}
+	rc = formdecoder_decodefcgirequest(req, &fd_ctx, 8LL * 1024LL * 1024LL, &ei_ctx);
+	if (rc == -1) {
+		error = errorinfo_cstr(ei_ctx);
+	}
+	if (rc == 0) {
+		formdecoder_dispose(fd_ctx);
+	}
 	FCGX_FPrintF(req->out,
 			"Status: 200\r\n"
 			"Content-Type: text/html\r\n"
@@ -48,39 +42,27 @@ int save_posted_data(FCGX_Request * req) {
 			"<!DOCTYPE html>\r\n"
 			"<html><head></head><body>\r\n"
 			"<h1>POST Data Received</h1>\r\n"
-			"<p>Received %d bytes of POST data, written to %s</p>"
+			"<p>Received POST data formdecoder_decodefcgirequest() %d</p>\r\n"
+			"<pre>%s</pre>\r\n"
 			"</body></html>\r\n",
-			(int)bytes_read_total,
-			temp_filename);
-	// demonstrate how redirections are configured :-
-	//   0: stdin is actually connected to the unix domain socket (it means we can read and
-	//      write to that file descriptor)
-	//   1: stdout - as usual
-	//   2: stderr - as usual
-	fprintf(stderr, "stderr: %d bytes saved to %s\n", (int)bytes_read_total, temp_filename);
-	fprintf(stdout, "stdout: %d bytes saved to %s\n", (int)bytes_read_total, temp_filename);
+			(int)rc,
+			error == NULL ? "" : error);
 	goto finish;
 error:
 	FCGX_FPrintF(req->out,
-			"Status: 500\r\n"
-			"Content-Type: text/html\r\n"
+			"Status: 400\r\n"
+			"Content-Type: text/html; charset=utf-8\r\n"
 			"\r\n"
 			"<!DOCTYPE html>\r\n"
 			"<html><head></head><body>\r\n"
-			"<h1>FastCGI Server Error</h1>\r\n"
-			"</body></html>\r\n");
+			"<h1>400 Client Error</h1>\r\n"
+			"<p>Error Processing Request</p>\r\n"
+			"<code>%s</code>\r\n"
+			"</body></html>\r\n",
+			error);
+	fprintf(stderr, "%s\n", error);
 finish:
-	FCGX_FFlush(req->out);
-	if (fd != -1) {
-		close(fd);
-	}
-	if (temp_filename) {
-		free(temp_filename);
-	}
-	if (read_buffer) {
-		free(read_buffer);
-	}
-	return res;
+	return 0;
 }
 
 /*
@@ -145,7 +127,7 @@ int process_request(FCGX_Request * request) {
 	if (strcmp(request_method, "POST") == 0) {
 		char * path_info = FCGX_GetParam("PATH_INFO", request->envp);
 		if (path_info != NULL && strcmp(path_info, "posttest") == 0) {
-			save_posted_data(request);
+			process_posted_data(request);
 		} else {
 send_404:
 			FCGX_FPrintF(request->out,
@@ -180,7 +162,7 @@ finish:
 int main(int argc, char *argv[]) {
 	FCGX_Request * request;
 	int rc;
-	
+
 	FCGX_Init();
 	request = (FCGX_Request *)malloc(sizeof(FCGX_Request));
 	if (request == NULL) { return 1; }
