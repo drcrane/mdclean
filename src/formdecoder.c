@@ -150,6 +150,18 @@ int formdecoder_getfield(formdecoder_context * ctx, char * key, size_t * data_le
 	return -1;
 }
 
+struct formdecoder_context_field * formdecoder_getfieldex(formdecoder_context * ctx, char * key) {
+	if (ctx->type == FORMDECODER_MULTIPART) {
+		size_t key_len;
+		struct formdecoder_context_field * field = NULL;
+		size_t field_len;
+		key_len = strlen(key);
+		simplemap_findfromkey(ctx->fields, key, key_len, 0, (void **)&field, &field_len);
+		return field;
+	}
+	return NULL;
+}
+
 size_t formdecoder_fieldcount(formdecoder_context * ctx) {
 	return simplemap_count(ctx->fields);
 }

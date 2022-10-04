@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "dynstring.h"
@@ -14,11 +15,50 @@
 
 #define READ_BUFFER_SIZE 8192
 
+static int write_file_to_fastcgi(char * filename, FCGX_Stream * out) {
+	char * buf;
+	int fd;
+	int rc;
+	int res = 0;
+	ssize_t br;
+	int ctr;
+	buf = malloc(READ_BUFFER_SIZE);
+	if (buf == NULL) {
+		return -1;
+	}
+	fd = open(filename, O_RDONLY);
+	if (fd == -1) {
+		res = -1;
+		goto error;
+	}
+	ctr = 1024;
+	do {
+		br = read(fd, buf, READ_BUFFER_SIZE);
+		if (br <= 0) {
+			break;
+		}
+		rc = FCGX_PutStr(buf, br, out);
+		if (rc < 0 || rc != br) {
+			res = -1;
+			break;
+		}
+	} while (--ctr);
+	close(fd);
+error:
+	if (buf) {
+		free(buf);
+	}
+	return res;
+}
+
 int process_posted_data(FCGX_Request * req) {
 	char * error = "NO ERROR DETECTED";
 	char * content_type;
+	char * file_content_type;
 	formdecoder_context * fd_ctx;
 	errorinfo_context * ei_ctx = NULL;
+	struct formdecoder_context_field * form_field;
+	char * filename;
 	int rc;
 	content_type = FCGX_GetParam("CONTENT_TYPE", req->envp);
 	if (content_type) {
@@ -31,22 +71,34 @@ int process_posted_data(FCGX_Request * req) {
 	rc = formdecoder_decodefcgirequest(req, &fd_ctx, 8LL * 1024LL * 1024LL, &ei_ctx);
 	if (rc == -1) {
 		error = errorinfo_cstr(ei_ctx);
+		goto error;
 	}
-	if (rc == 0) {
-		formdecoder_dispose(fd_ctx);
+	form_field = formdecoder_getfieldex(fd_ctx, "file");
+	if (form_field == NULL) {
+		error = "Field not found in request";
+		goto error;
+	}
+	filename = form_field->filename;
+	if (filename == NULL) {
+		error = "filename not found in form field";
+		goto error;
+	}
+	file_content_type = form_field->mime_type;
+	if (file_content_type == NULL) {
+		error = "mime type not found in form field";
+		goto error;
 	}
 	FCGX_FPrintF(req->out,
 			"Status: 200\r\n"
-			"Content-Type: text/html\r\n"
-			"\r\n"
-			"<!DOCTYPE html>\r\n"
-			"<html><head></head><body>\r\n"
-			"<h1>POST Data Received</h1>\r\n"
-			"<p>Received POST data formdecoder_decodefcgirequest() %d</p>\r\n"
-			"<pre>%s</pre>\r\n"
-			"</body></html>\r\n",
-			(int)rc,
-			error == NULL ? "" : error);
+			"Content-Type: %s\r\n"
+			"Content-Disposition: attachment; filename=%s;\r\n"
+			"\r\n",
+			file_content_type,
+			filename);
+	rc = write_file_to_fastcgi(form_field->tempfilename, req->out);
+	if (rc) {
+		fprintf(stderr, "write_file_to_fastcgi() rc = %d\r\n", rc);
+	}
 	goto finish;
 error:
 	FCGX_FPrintF(req->out,
@@ -62,6 +114,12 @@ error:
 			error);
 	fprintf(stderr, "%s\n", error);
 finish:
+	if (fd_ctx) {
+		formdecoder_dispose(fd_ctx);
+	}
+	if (ei_ctx) {
+		errorinfo_dispose(ei_ctx);
+	}
 	return 0;
 }
 
@@ -113,7 +171,7 @@ int process_request(FCGX_Request * request) {
 					"<!DOCTYPE html>\r\n"
 					"<html><head><meta charset=\"utf-8\"></head><body>\r\n"
 					"<h1>POST some data</h1>\r\n"
-					"<p>Data posted with this form will be saved raw in this server's /tmp directory</p>\r\n"
+					"<p>Data posted with this form will be returned to you unchanged with <code>Content-Disposition: attachment</code></p>\r\n"
 					"<form method=\"POST\" enctype=\"multipart/form-data\">\r\n"
 					"<label for=\"tags\">Tags:</label><input type=\"text\" name=\"tags\"><br/>\r\n"
 					"<label for=\"file\">File:</label><input type=\"file\" name=\"file\"><br/>\r\n"

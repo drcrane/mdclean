@@ -8,18 +8,6 @@
 #define FORMDECODER_MULTIPART 0
 #define FORMDECODER_QUERYSTRING 1
 
-typedef struct kvec_fd_kvp {
-	// Null-terminated C-string
-	char * key;
-	size_t data_len;
-	char * data;
-	char * mime_type;
-	char * filename;
-	char * tempfilename;
-	int fd;
-	// TODO: Include a file backed member
-} kvec_fd_kvp;
-
 struct formdecoder_context;
 typedef struct formdecoder_context formdecoder_context;
 
@@ -42,8 +30,21 @@ void formdecoder_dispose(formdecoder_context * ctx);
  *       if data is not null it will be freed when the formdecoder_context is destroyed.
  */
 int formdecoder_setfield(formdecoder_context * ctx, char * key, size_t data_len, char * data);
+
+/*
+ * Get the value from a field with the name key
+ * @key          nul terminated C string
+ * @data_len_ptr length of data returned in data_ptr
+ * @data_ptr     data present in the form field
+ * return 0 on success
+ */
 int formdecoder_getfield(formdecoder_context * ctx, char * key, size_t * data_len_ptr, char ** data_ptr);
-kvec_fd_kvp * formdecoder_getfieldptr(formdecoder_context * ctx, char * key);
+
+/*
+ * Get the pointer to the internal field representation
+ * important for when the field is a file.
+ */
+struct formdecoder_context_field * formdecoder_getfieldex(formdecoder_context * ctx, char * key);
 
 /*
  * Callback to generate the stuff for the stuff.

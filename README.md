@@ -10,8 +10,6 @@ This project is an example of how to use FastCGI with nginx and C to run
 This application makes use of some library functions from `libgreen`
 which is a small collection of useful C and C++ functions and algorithms.
 
-[libgreen](https://joshua.th.roseleaf.net/cgit/libgreen.git)
-
 ### Local
 
 The application requires the fcgi library and header files. These should
@@ -20,7 +18,7 @@ a local instance of some fcgi compatible server will need to be configured
 for nginx see the settings in `nginx/nginx.conf.template` for an example.
 
     make appsrc/mdclean
-    spawn-fcgi -U nginx -G nginx -s /run/spawn-fcgi/mdclean.sock-1 -n ./mdclean
+    spawn-fcgi -U nginx -G nginx -s /run/spawn-fcgi/mdclean.sock-1 -n appsrc/mdclean
 
 ### Docker
 
@@ -40,4 +38,20 @@ Using the Heroku CLI:
     heroku container:login
     heroku container:push --app <application_name> web
     heroku container:release --app <application_name> web
+
+## Using the Application
+
+Vist the web page containing the form allowing a file to be uploaded:
+
+    http://127.0.0.1/mdclean/posttest
+
+The host `127.0.0.1` and the first part of the path should be altered to
+fit your specific infrastructure and nginx configuration.
+
+Select a small file file and click the `Upload` button. Your browser
+should then begin a file download, this file is the file that you selected
+to upload. In version 0.0.3 (this version) the file will simply be sent
+back but the application will hint to the browser that the file should be
+downloaded. The hint is through a header `Content-Disposition` see
+`mdclean.c#process_posted_data`.
 
