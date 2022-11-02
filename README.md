@@ -28,17 +28,6 @@ allows the project to be compiled and the image created in a single step.
     docker build --tag mdclean:0.0.3 --file Dockerfile .
     docker run --rm -i -t -p 8080:8080 -e PORT=8080 mdclean:0.0.3
 
-### Heroku
-
-Using the Heroku CLI:
-
-    heroko login -i
-    heroku create --region eu
-    < application_name returned >
-    heroku container:login
-    heroku container:push --app <application_name> web
-    heroku container:release --app <application_name> web
-
 ## Using the Application
 
 Vist the web page containing the form allowing a file to be uploaded:

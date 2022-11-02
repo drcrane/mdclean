@@ -13,11 +13,17 @@ SRCDIR=src/
 
 DEPS=$(wildcard $(OBJDIR)*.d) $(wildcard testsrc/*.d)
 
-APPOBJ=obj/formdecoder.o obj/contentdisposition.o obj/errorinfo.o obj/quotedstringparser.o
-APPBIN=appsrc/mdclean
+APPOBJ=obj/formdecoder.o obj/contentdisposition.o obj/errorinfo.o obj/quotedstringparser.o obj/extprocess.o
+APPBIN=appbin/mdclean
 TESTOBJ=obj/mockfcgiapp.o
 
-def: appsrc/mdclean
+def: $(APPBIN)
+
+appbin/:
+	mkdir $@
+
+testbin/:
+	mkdir $@
 
 deps/libgreen/lib/libgreen.a: deps/libgreen/
 	$(MAKE) -C $< lib/libgreen.a
@@ -34,10 +40,10 @@ appsrc/%.o: appsrc/%.c
 testsrc/%.o: testsrc/%.c
 	$(CC) -c $(CFLAGS) -MMD -o $@ $<
 
-appsrc/%: appsrc/%.o lib/libapp.a deps/libgreen/lib/libgreen.a
+appbin/%: appsrc/%.o lib/libapp.a deps/libgreen/lib/libgreen.a | appbin/
 	$(CC) $(DEPFLAGS) $(APPLIBS) $(LDFLAGS) $(CFLAGS) $< $(LDLIBS) -o $@
 
-testsrc/%: testsrc/%.o lib/libapp.a deps/libgreen/lib/libgreen.a $(TESTOBJ)
+testbin/%: testsrc/%.o lib/libapp.a deps/libgreen/lib/libgreen.a $(TESTOBJ) | testbin/
 	$(CC) $(DEPFLAGS) $(LDFLAGS) $(CFLAGS) $(TESTOBJ) $< $(LDLIBS) -o $@
 
 -include $(DEPS)

@@ -12,6 +12,7 @@
 #include "errorinfo.h"
 #include "strutils.h"
 #include "fcgiapp.h"
+#include "extprocess.h"
 
 #define READ_BUFFER_SIZE 8192
 
@@ -52,7 +53,7 @@ error:
 }
 
 int process_posted_data(FCGX_Request * req) {
-	char * error = "NO ERROR DETECTED";
+	char * error_str = "NO ERROR DETECTED";
 	char * content_type;
 	char * file_content_type;
 	formdecoder_context * fd_ctx;
@@ -65,27 +66,27 @@ int process_posted_data(FCGX_Request * req) {
 		fprintf(stdout, "Content-Type: %s\n", content_type);
 	}
 	if (content_type == NULL || !strutils_begins_with(content_type, "multipart/form-data")) {
-		error = "invalid or unsupplied Content-Type header";
+		error_str = "invalid or unsupplied Content-Type header";
 		goto error;
 	}
 	rc = formdecoder_decodefcgirequest(req, &fd_ctx, 8LL * 1024LL * 1024LL, &ei_ctx);
 	if (rc == -1) {
-		error = errorinfo_cstr(ei_ctx);
+		error_str = errorinfo_cstr(ei_ctx);
 		goto error;
 	}
 	form_field = formdecoder_getfieldex(fd_ctx, "file");
 	if (form_field == NULL) {
-		error = "Field not found in request";
+		error_str = "Field not found in request";
 		goto error;
 	}
 	filename = form_field->filename;
 	if (filename == NULL) {
-		error = "filename not found in form field";
+		error_str = "filename not found in form field";
 		goto error;
 	}
 	file_content_type = form_field->mime_type;
 	if (file_content_type == NULL) {
-		error = "mime type not found in form field";
+		error_str = "mime type not found in form field";
 		goto error;
 	}
 	FCGX_FPrintF(req->out,
@@ -111,8 +112,8 @@ error:
 			"<p>Error Processing Request</p>\r\n"
 			"<code>%s</code>\r\n"
 			"</body></html>\r\n",
-			error);
-	fprintf(stderr, "%s\n", error);
+			error_str);
+	fprintf(stderr, "%s\n", error_str);
 finish:
 	if (fd_ctx) {
 		formdecoder_dispose(fd_ctx);

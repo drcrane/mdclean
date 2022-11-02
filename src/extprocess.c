@@ -10,9 +10,113 @@
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <string.h>
+#include <stdarg.h>
 #include "dbg.h"
 #include "extprocess.h"
 #include "dynstring.h"
+
+#define EXTPROCESS_CONTEXT_DEFAULTARGSCOUNT 8
+#define EXTPROCESS_CONTEXT_GROWARGSBY 8
+
+struct extprocess_context * extprocess_create() {
+	struct extprocess_context * ctx;
+	ctx = malloc(sizeof(struct extprocess_context));
+	if (ctx == NULL) {
+		goto finished;
+	}
+	ctx->arg = NULL;
+	ctx->arg_size = 0;
+	dynstring_initialise(&ctx->output, 8192);
+finished:
+	return ctx;
+}
+
+void extprocess_dispose(struct extprocess_context * ctx) {
+	if (ctx->arg) {
+		char * arg = NULL;
+		size_t idx = 0;
+		do {
+			arg = ctx->arg[idx];
+			if (arg == NULL) {
+				break;
+			}
+			free(arg);
+			++ idx;
+		} while (idx < ctx->arg_size);
+		free(ctx->arg);
+	}
+	dynstring_free(&ctx->output);
+	free(ctx);
+}
+
+size_t extprocess_argumentcount(struct extprocess_context * ctx) {
+	size_t arg_count;
+	if (ctx->arg == NULL) {
+		return 0;
+	}
+	arg_count = 0;
+	while (ctx->arg[arg_count]) {
+		++ arg_count;
+	}
+	return arg_count;
+}
+
+const char * extprocess_argumentget(struct extprocess_context * ctx, size_t idx) {
+	return ctx->arg[idx];
+}
+
+int extprocess_argumentappend(struct extprocess_context * ctx, char * arg) {
+	size_t arg_count;
+	size_t arg_len;
+	if (ctx->arg == NULL) {
+		ctx->arg = malloc(EXTPROCESS_CONTEXT_DEFAULTARGSCOUNT * sizeof(*ctx->arg));
+		if (ctx->arg == NULL) {
+			return -1;
+		}
+		ctx->arg[0] = NULL;
+		ctx->arg_size = EXTPROCESS_CONTEXT_DEFAULTARGSCOUNT;
+	}
+	arg_count = extprocess_argumentcount(ctx);
+	if (arg_count >= (ctx->arg_size - 1)) {
+		char ** new_arg;
+		new_arg = realloc(ctx->arg, (ctx->arg_size + EXTPROCESS_CONTEXT_GROWARGSBY) * sizeof(*ctx->arg));
+		if (new_arg == NULL) {
+			return -1;
+		}
+		ctx->arg = new_arg;
+		ctx->arg_size = (ctx->arg_size + EXTPROCESS_CONTEXT_GROWARGSBY);
+	}
+	arg_len = strlen(arg) + 1;
+	ctx->arg[arg_count] = malloc(arg_len);
+	if (ctx->arg[arg_count] == NULL) {
+		return -1;
+	}
+	memcpy(ctx->arg[arg_count], arg, arg_len);
+	arg_count = arg_count + 1;
+	ctx->arg[arg_count] = NULL;
+	return 0;
+}
+
+int extprocess_argumentappend_va(struct extprocess_context * ctx, va_list args) {
+	char * str;
+	int rc;
+	str = va_arg(args, char *);
+	while (str != NULL) {
+		rc = extprocess_argumentappend(ctx, str);
+		if (rc) { break; }
+		str = va_arg(args, char *);
+	}
+	return rc;
+}
+
+int extprocess_argumentappendz(struct extprocess_context * ctx, ...) {
+	int rc;
+	va_list args;
+	va_start(args, ctx);
+	rc = extprocess_argumentappend_va(ctx, args);
+	va_end(args);
+	return rc;
+}
 
 int extprocess_execute_getoutput(char * const args[], dynstring_context_t * output) {
 	int wpipefd[2];
