@@ -53,6 +53,6 @@ clean:
 	rm -f obj/*.d
 	rm -f lib/*.a
 	rm -f $(APPBIN)
-	rm -f testsrc/formdecoder_tests
+	rm -f testbin/*
 #	$(MAKE) -C deps/libgreen/ clean
 
