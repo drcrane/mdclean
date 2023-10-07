@@ -1,0 +1,13 @@
+-----------------------------350468835916051811984031396419
+Content-Disposition: form-data; name="tags"
+
+test tag
+-----------------------------350468835916051811984031396419
+Content-Disposition: form-data; name="file"; filename="testing_file.txt"
+Content-Type: text/plain
+
+This is a text file containing some text.
+It is just a testing file :-)
+
+-----------------------------350468835916051811984031396419--
+

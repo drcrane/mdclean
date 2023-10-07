@@ -1,2 +1,5 @@
 *.jpg  -text binary -diff
+testdata/testing_file.txt text eol=crlf
+testdata/simplepost.mime text eol=crlf
+src/* text eol=lf
 

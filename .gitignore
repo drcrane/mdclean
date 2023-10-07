@@ -2,4 +2,10 @@
 !Makefile
 !*.*
 !*/
+lib/
+obj/
+appbin/
+testbin/
+*.o
+*.d
 
