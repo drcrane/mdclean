@@ -24,6 +24,19 @@ char * strnstr(const char * haystack, const char * needle, size_t len) {
 	return NULL;
 }
 
+char * strnchr(const char * heystack, int needle, size_t len) {
+	char * ptr = heystack;
+	char * ptr_end = heystack + len;
+	char c;
+	while ((c = *ptr) != 0 && (ptr < ptr_end)) {
+		if (c == needle) {
+			return ptr;
+		}
+		ptr++;
+	}
+	return NULL;
+}
+
 char * mimeparse_positionofany(const char * input, size_t input_len, const char * matches, size_t matches_len) {
 	for(size_t i = 0; i < input_len; ++i) {
 		for(size_t j = 0; j < matches_len; ++j) {
@@ -135,5 +148,72 @@ mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char
 	free(boundaries);
 	*part_count = part_idx;
 	return mimeparts;
+}
+
+char * mimeparse_findheaderend(const char * input, size_t input_len) {
+    char * ptr = input;
+	char * input_end = input + input_len;
+    while (ptr < input_end) {
+		if (*ptr == '\r') {
+			if (ptr + 3 <= input_end) {
+				if (ptr[1] == '\n') {
+					char c = ptr[2];
+					if (c != ' ' && c != '\t') {
+						return ptr + 2;
+					}
+				}
+			}
+		}
+        ptr++;
+    }
+    return NULL;
+}
+
+int mimeparse_findheaderfield(const char * input, size_t input_len, const char * field_name, char ** starts_at, size_t * value_len) {
+	char * field_begins = strnstr(input, field_name, input_len);
+	if (field_begins == NULL) {
+		return -1;
+	}
+	size_t len = strlen(field_name);
+	field_begins += len;
+	char * field_ends;
+	if (*field_begins == '"') {
+		field_begins++;
+		field_ends = strnchr(field_begins, '"', input_len - (field_begins - input));
+		if (field_ends == NULL) {
+			return -2;
+		}
+	} else {
+		field_ends = mimeparse_positionofany(field_begins, input_len - (field_begins - input), ";\r\n\0", 4);
+		if (field_ends == NULL) {
+			return -2;
+		}
+		//field_ends --;
+	}
+	*starts_at = field_begins;
+	*value_len = field_ends - field_begins;
+	return 0;
+}
+
+#define CONTENT_DISPOSITION "Content-Disposition:"
+
+mimeparse_contentdispositionheader mimeparse_parsecontentdisposition(const char * input, size_t input_len) {
+	mimeparse_contentdispositionheader hdr;
+	char * header_content;
+	char * end_of_header;
+	hdr.filename = NULL;
+	hdr.filename_len = 0;
+	hdr.fieldname = NULL;
+	hdr.fieldname_len = 0;
+	header_content = strnstr(input, CONTENT_DISPOSITION, input_len);
+	if (header_content == NULL) {
+		return hdr;
+	}
+	header_content += sizeof(CONTENT_DISPOSITION) - 1;
+	end_of_header = mimeparse_findheaderend(header_content, input_len - (header_content - input));
+	// if the fields are not found the output pointers will not be altered
+	mimeparse_findheaderfield(header_content, end_of_header - header_content, "filename=", &hdr.filename, &hdr.filename_len);
+	mimeparse_findheaderfield(header_content, end_of_header - header_content, "name=", &hdr.fieldname, &hdr.fieldname_len);
+	return hdr;
 }
 

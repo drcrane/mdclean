@@ -15,4 +15,15 @@ char * mimeparse_positionofany(const char * input, size_t input_len, const char 
 char ** mimeparse_findsubstrings(const char * input, size_t input_len, const char * boundary, size_t * match_count);
 mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char * boundary, size_t * part_count);
 
+typedef struct mimeparse_contentdispositionheader {
+	char * filename;
+	size_t filename_len;
+	char * fieldname;
+	size_t fieldname_len;
+} mimeparse_contentdispositionheader;
+
+char * mimeparse_findheaderend(const char * input, size_t input_len);
+int mimeparse_findheaderfield(const char * input, size_t input_len, const char * field_name, char ** starts_at, size_t * value_len);
+mimeparse_contentdispositionheader mimeparse_parsecontentdisposition(const char * input, size_t input_len);
+
 #endif // MIMEPARSE_H

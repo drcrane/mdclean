@@ -4,6 +4,61 @@
 #include "mimeparse.h"
 #include "filesystem.h"
 
+static const char * mimeparse_findheaderend_test() {
+	char * input = "Content-Disposition: form-data; name=\"file\";\r\n filename=\"testing_file.txt\"\r\n\r\n";
+	size_t input_len = strlen(input);
+	char * end_pos = mimeparse_findheaderend(input, input_len);
+	if (end_pos == NULL) {
+		return "mimeparse_findheaderend_test failed";
+	}
+	fprintf(stdout, "end of header : %d\n", (int)(end_pos - input));
+
+	input = "Content-Disposition: form-data; name=\"file\";\r\n\tfilename=\"testing_file.txt\"\r\n\r\n";
+	input_len = strlen(input);
+	end_pos = mimeparse_findheaderend(input, input_len);
+	if (end_pos == NULL) {
+		return "mimeparse_findheaderend_test failed";
+	}
+	fprintf(stdout, "end of header : %d\n", (int)(end_pos - input));
+
+	input = "Content-Disposition: form-data; name=\"file\"; filename=\"testing_file.txt\"\r\nContent-Type: text/plain\r\n\r\n";
+	input_len = strlen(input);
+	end_pos = mimeparse_findheaderend(input, input_len);
+	if (end_pos == NULL) {
+		return "mimeparse_findheaderend_test failed";
+	}
+	fprintf(stdout, "end of header : %d\n", (int)(end_pos - input));
+
+	// This header has no end
+	input = "Content-Disposition: form-data; name=\"file\"; filename=\"testing_file.txt\"";
+	input_len = strlen(input);
+	end_pos = mimeparse_findheaderend(input, input_len);
+	if (end_pos != NULL) {
+		return "mimeparse_findheaderend_test failed";
+	}
+
+	return NULL;
+}
+
+static const char * mimeparse_findheaderfield_test() {
+	int res;
+	char * input = "form-data; name=\"file\"; filename=\"testing_file.txt\"\r\nContent-Type: text/plain\r\n\r\n";
+	size_t input_len = strlen(input);
+	char * field_value;
+	size_t field_len;
+	res = mimeparse_findheaderfield(input, input_len, "name=", &field_value, &field_len);
+	fprintf(stdout, "fieldname %.*s\n", (int)field_len, field_value);
+	res = mimeparse_findheaderfield(input, input_len, "filename=", &field_value, &field_len);
+	fprintf(stdout, "filename %.*s\n", (int)field_len, field_value);
+
+	input = "form-data; name=tags_and_stuff; filename=testing_file.txt\r\nContent-Type: text/plain\r\n\r\n";
+	res = mimeparse_findheaderfield(input, input_len, "name=", &field_value, &field_len);
+	fprintf(stdout, "Field Name : %.*s\n", (int)field_len, field_value);
+	res = mimeparse_findheaderfield(input, input_len, "filename=", &field_value, &field_len);
+	fprintf(stdout, "File Name  : %.*s\n", (int)field_len, field_value);
+	return NULL;
+}
+
 int main(int argc, char *argv[]) {
 	char * content_type = "multipart/form-data; boundary=---------------------------350468835916051811984031396419";
 	char * boundary = NULL;
@@ -64,6 +119,29 @@ int main(int argc, char *argv[]) {
 		fprintf(stdout, "Decoded contents not the same as original contents\n");
 		return 1;
 	}
+
+	char * testres = mimeparse_findheaderend_test();
+	if (testres) {
+		fprintf(stderr, "%s\n", testres);
+		return 1;
+	}
+
+	testres = mimeparse_findheaderfield_test();
+	if (testres) {
+		fprintf(stderr, "%s\n", testres);
+		return 1;
+	}
+
+	// Decode a header (in place)
+	mimeparse_contentdispositionheader contentdisp =
+	mimeparse_parsecontentdisposition(mimeparts[1].header_start, mimeparts[1].content_start - mimeparts[1].header_start);
+	if (contentdisp.filename == NULL || contentdisp.fieldname == NULL) {
+		fprintf(stderr, "filename or fieldname not found\n");
+		return 1;
+	}
+	fprintf(stdout, "fieldname = %.*s\n", (int)contentdisp.fieldname_len, contentdisp.fieldname);
+	fprintf(stdout, "filename = %.*s\n", (int)contentdisp.filename_len, contentdisp.filename);
+
 	fprintf(stdout, "Everything seems to work properly\n");
 
 	free(boundary);
