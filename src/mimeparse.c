@@ -47,11 +47,13 @@ int mimeparse_getboundary(char ** res, const char * input, size_t input_len) {
 		return -2;
 	}
     size_t tokn_len = tokn_term - tokn_pos;
-    char * tokn = malloc(tokn_len + 1);
+	const char prfx[] = { '-', '-' };
+    char * tokn = malloc(sizeof(prfx) + tokn_len + 1);
 	if (tokn == NULL) {
 		return -3;
 	}
-    memcpy(tokn, tokn_pos, tokn_len);
+	memcpy(tokn, prfx, sizeof(prfx));
+    memcpy(tokn + sizeof(prfx), tokn_pos, tokn_len);
     tokn[tokn_len - 1] = '\0';
 	*res = tokn;
 	return 0;
@@ -106,11 +108,11 @@ mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char
 			fprintf(stdout, "%d: %d\n", (int)i, (int)(boundaries[i] - input));
 		}
 		if (i > 0) {
-			size_t part_boundary_size = 2 + boundary_size;
+			size_t part_boundary_size = boundary_size;
 			char * part_start = boundaries[i - 1] + part_boundary_size;
-			// Each part will end with \r\n and the boundary detected does not include the first --
-			// as a result they are removed here:
-			size_t part_size = boundaries[i] - boundaries[i - 1] - part_boundary_size - 2 - 2;
+			// Each part will end with \r\n
+			// and this will be removed here:
+			size_t part_size = boundaries[i] - boundaries[i - 1] - part_boundary_size - 2;
 			// End of headers is a blank line:
 			char * content_start = strnstr(part_start, "\r\n\r\n", part_size);
 			if (content_start) { content_start += 4; }
