@@ -19,6 +19,8 @@ for nginx see the settings in `nginx/nginx.conf.template` for an example.
 
 ### Docker
 
-    docker build --progress=plain --tag mdclean:0.0.5 --file Dockerfile .
-    docker run --rm --name mdcleantest -i -t -p 8080:8080 -e PORT=8080 mdclean:0.0.5
+    docker build --progress=plain --tag mdclean:0.0.6 --file Dockerfile .
+    docker run --rm --name mdcleantest -i -t -d -p 8080:8080 -e PORT=8080 mdclean:0.0.6
+    docker stop mdcleantest
+    docker rmi $(docker images | grep '^<none>' | awk '{print $3}')
 

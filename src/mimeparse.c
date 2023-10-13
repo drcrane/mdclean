@@ -120,9 +120,6 @@ mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char
 	}
 	part_idx = 0;
 	for (i = 0; i < boundary_count; i++) {
-		if (i == 0) {
-			fprintf(stdout, "%d: %d\n", (int)i, (int)(boundaries[i] - input));
-		}
 		if (i > 0) {
 			size_t part_boundary_size = boundary_size;
 			char * part_start = boundaries[i - 1] + part_boundary_size;
@@ -131,17 +128,10 @@ mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char
 			size_t part_size = boundaries[i] - boundaries[i - 1] - part_boundary_size - 2;
 			// End of headers is a blank line:
 			char * content_start = strnstr(part_start, "\r\n\r\n", part_size);
-			if (content_start) { content_start += 4; }
+			if (content_start == NULL) { continue; }
+			content_start += 4;
 			// content_size is part size - header size.
 			size_t content_size = part_size - (content_start - part_start);
-			fprintf(stdout, "%d: %d\n", (int)i, (int)(boundaries[i] - boundaries[i - 1]));
-			//fprintf(stdout, "----\n%.*s\n----\n", (int)(part_size), part_start);
-			if (content_start == NULL) {
-				fprintf(stdout, "This part was invalid.\n");
-				continue;
-			} else {
-				fprintf(stdout, "----\n[%.*s]\n----\n", (int)content_size, content_start);
-			}
 			mimeparts[part_idx].header_start = part_start;
 			mimeparts[part_idx].content_start = content_start;
 			mimeparts[part_idx].content_size = content_size;

@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
 	char ** boundaries;
 	mimeparse_part * mimeparts;
 	size_t mimepart_count;
+	size_t i;
 	char * testing_contents;
 	size_t testing_size;
 
@@ -105,6 +106,16 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	for (i = 0; i < mimepart_count; i++) {
+		fprintf(stdout, "%d: %d\n", (int)i, (int)(mimeparts[i].content_size));
+		if (mimeparts[i].content_start == NULL) {
+			fprintf(stdout, "This part was invalid.\n");
+			continue;
+		} else {
+			fprintf(stdout, "----\n[%.*s]\n----\n", (int)mimeparts[i].content_size, mimeparts[i].content_start);
+		}
+	}
+
 	res = filesystem_loadfiletoram("testdata/testing_file.txt", (void *)&testing_contents, &testing_size);
 	if (res != 0) {
 		fprintf(stderr, "Cannot load original testing file\n");
@@ -120,13 +131,13 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-	char * testres = mimeparse_findheaderend_test();
+	char * testres = (char *)mimeparse_findheaderend_test();
 	if (testres) {
 		fprintf(stderr, "%s\n", testres);
 		return 1;
 	}
 
-	testres = mimeparse_findheaderfield_test();
+	testres = (char *)mimeparse_findheaderfield_test();
 	if (testres) {
 		fprintf(stderr, "%s\n", testres);
 		return 1;
@@ -147,6 +158,7 @@ int main(int argc, char *argv[]) {
 	free(boundary);
 	free(mimeparts);
 	free(file_contents);
+	free(testing_contents);
 
 	return 0;
 }
