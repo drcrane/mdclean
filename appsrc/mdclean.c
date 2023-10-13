@@ -8,6 +8,7 @@
 
 #include "fcgiapp.h"
 #include "mimeparse.h"
+#include "filesystem.h"
 
 #define READ_BUFFER_INITIAL_SIZE (8192 * 4)
 #define READ_BUFFER_BLOCK_SIZE 8192
@@ -104,7 +105,6 @@ int save_posted_data(FCGX_Request * req) {
 	size_t post_buffer_size = 0;
 
 	char * temp_filename = NULL;
-	int fd = -1;
 
 	char * content_type;
 	char * boundary = NULL;;
@@ -112,25 +112,21 @@ int save_posted_data(FCGX_Request * req) {
 	mimeparse_part * partlist = NULL;
 	size_t partlist_size;
 
-	// ----  ----
-	temp_filename = strdup("/tmp/mdclean_data.XXXXXX");
-	if (!temp_filename) { res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE; goto error; }
-	//fd = mkstemp(temp_filename);
-	//if (fd == -1) { res = MDCLEAN_ERROR_FILECREATIONERROR; goto error; }
-	//if (fd != -1) {
-	//	close(fd);
-	//}
-
-	// ----  ----
+	// ---- Receive data from nginx ----
 	res = receive_post_data(&post_buffer, &post_buffer_size, req);
 	if (res != 0) { goto error; }
 
-	// ----  ----
+	// ---- Write the posted data to a temporary file ----
+	temp_filename = strdup("/tmp/mdclean_data.XXXXXX");
+	if (!temp_filename) { res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE; goto error; }
+	rc = filesystem_saveramtofile(temp_filename, post_buffer, post_buffer_size);
+	if (rc) { res = MDCLEAN_ERROR_FILEWRITEFAILURE; goto error; }
+
+	// ---- Parse the data in the buffer ----
 	content_type = FCGX_GetParam("CONTENT_TYPE", req->envp);
 	if (content_type == NULL || strlen(content_type) < 6) { res = MDCLEAN_ERROR_HEADERNOTFOUND; goto error; }
 	rc = mimeparse_getboundary(&boundary, content_type, strlen(content_type));
 	if (rc) { res = MDCLEAN_ERROR_BOUNDARYNOTFOUND; goto error; }
-
 	partlist = mimeparse_parseparts(post_buffer, post_buffer_size, boundary, &partlist_size);
 	if (partlist == NULL) {
 		res = MDCLEAN_ERROR_MIMEPARSEFAILURE;
@@ -144,6 +140,7 @@ int save_posted_data(FCGX_Request * req) {
 			fprintf(stderr, "uploaded filename: %.*s\n", (int)contentdisp.filename_len, contentdisp.filename);
 		}
 	}
+
 	res = 0;
 	FCGX_FPrintF(req->out,
 			"Status: 200\r\n"

@@ -13,9 +13,9 @@ SRCDIR=src/
 
 DEPS=$(wildcard $(OBJDIR)*.d) $(wildcard testsrc/*.d)
 
-APPOBJ=obj/mimeparse.o
+APPOBJ=obj/mimeparse.o obj/filesystem.o
 APPBIN=appbin/mdclean
-TESTOBJ=obj/filesystem.o
+TESTOBJ=
 
 def: $(APPBIN)
 
