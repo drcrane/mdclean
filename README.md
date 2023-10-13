@@ -24,3 +24,7 @@ for nginx see the settings in `nginx/nginx.conf.template` for an example.
     docker stop mdcleantest
     docker rmi $(docker images | grep '^<none>' | awk '{print $3}')
 
+### Posting Test Data
+
+    curl -F "tags=test_tag other_tag" -F file=@testdata/testing_file.txt http://127.0.0.1:8080/mdclean/posttest
+

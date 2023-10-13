@@ -119,6 +119,14 @@ int save_posted_data(FCGX_Request * req) {
 	// ---- Write the posted data to a temporary file ----
 	temp_filename = strdup("/tmp/mdclean_data.XXXXXX");
 	if (!temp_filename) { res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE; goto error; }
+	{
+		// this is ugly but since it is not required soon it will not be fixed.
+		int fd;
+		fd = mkstemp(temp_filename);
+		if (fd == -1) { res = MDCLEAN_ERROR_FILECREATIONERROR; goto error; }
+		close(fd);
+		unlink(temp_filename);
+	}
 	rc = filesystem_saveramtofile(temp_filename, post_buffer, post_buffer_size);
 	if (rc) { res = MDCLEAN_ERROR_FILEWRITEFAILURE; goto error; }
 
