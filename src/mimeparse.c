@@ -11,12 +11,12 @@ char * strnstr(const char * haystack, const char * needle, size_t len) {
 	size_t needle_len;
 
 	if (0 == (needle_len = strnlen(needle, len)))
-		return (char *)haystack;
+		return NULL;
 
 	for (i=0; i<=(int)(len-needle_len); i++)
 	{
 		if ((haystack[0] == needle[0]) &&
-			(0 == strncmp(haystack, needle, needle_len)))
+			(strncmp(haystack, needle, needle_len) == 0))
 			return (char *)haystack;
 
 		haystack++;
@@ -25,12 +25,12 @@ char * strnstr(const char * haystack, const char * needle, size_t len) {
 }
 
 char * strnchr(const char * heystack, int needle, size_t len) {
-	char * ptr = heystack;
-	char * ptr_end = heystack + len;
+	const char * ptr = heystack;
+	const char * ptr_end = heystack + len;
 	char c;
 	while ((c = *ptr) != 0 && (ptr < ptr_end)) {
 		if (c == needle) {
-			return ptr;
+			return (char *)ptr;
 		}
 		ptr++;
 	}
@@ -54,20 +54,20 @@ int mimeparse_getboundary(char ** res, const char * input, size_t input_len) {
 	if (tokn_pos == NULL) {
 		return -1;
 	}
-    tokn_pos += 9;
-    char * tokn_term = mimeparse_positionofany(tokn_pos, (input_len - (tokn_pos - input)) + 1, ";\r\n\0", 4);
+	tokn_pos += 9;
+	char * tokn_term = mimeparse_positionofany(tokn_pos, (input_len - (tokn_pos - input)) + 1, ";\r\n\0", 4);
 	if (tokn_term == NULL) {
 		return -2;
 	}
-    size_t tokn_len = tokn_term - tokn_pos;
+	size_t tokn_len = tokn_term - tokn_pos;
 	const char prfx[] = { '-', '-' };
-    char * tokn = malloc(sizeof(prfx) + tokn_len + 1);
+	char * tokn = malloc(sizeof(prfx) + tokn_len + 1);
 	if (tokn == NULL) {
 		return -3;
 	}
 	memcpy(tokn, prfx, sizeof(prfx));
-    memcpy(tokn + sizeof(prfx), tokn_pos, tokn_len);
-    tokn[tokn_len - 1] = '\0';
+	memcpy(tokn + sizeof(prfx), tokn_pos, tokn_len);
+	tokn[tokn_len - 1] = '\0';
 	*res = tokn;
 	return 0;
 }
@@ -76,7 +76,10 @@ char ** mimeparse_findsubstrings(const char * input, size_t input_len, const cha
 	int substr_len = strlen(substr);
 	int max_occurrences = input_len / substr_len; // Max possible occurrences
 	char ** locations;
-	locations = (char**)malloc(max_occurrences * sizeof(char*));
+	if (input_len < substr_len) {
+		return NULL;
+	}
+	locations = (char **)malloc(max_occurrences * sizeof(char*));
 	if (locations == NULL) {
 		return NULL;
 	}
@@ -151,22 +154,22 @@ mimeparse_part * mimeparse_parseparts(const char * input, size_t input_len, char
 }
 
 char * mimeparse_findheaderend(const char * input, size_t input_len) {
-    char * ptr = input;
-	char * input_end = input + input_len;
-    while (ptr < input_end) {
+	const char * ptr = input;
+	const char * input_end = input + input_len;
+	while (ptr < input_end) {
 		if (*ptr == '\r') {
 			if (ptr + 3 <= input_end) {
 				if (ptr[1] == '\n') {
 					char c = ptr[2];
 					if (c != ' ' && c != '\t') {
-						return ptr + 2;
+						return (char *)(ptr + 2);
 					}
 				}
 			}
 		}
-        ptr++;
-    }
-    return NULL;
+		ptr++;
+	}
+	return NULL;
 }
 
 int mimeparse_findheaderfield(const char * input, size_t input_len, const char * field_name, char ** starts_at, size_t * value_len) {

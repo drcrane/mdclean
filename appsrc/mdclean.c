@@ -4,42 +4,125 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "fcgiapp.h"
+#include "mimeparse.h"
 
 #define READ_BUFFER_SIZE 8192
+#define READ_BUFFER_BLOCK_SIZE 8192
+// 8MiB... this should be the same as nginx configuration
+#define READ_BUFFER_MAX_SIZE (8192 * 128 * 8)
+
+#define MDCLEAN_ERROR_NOERROR 0
+#define MDCLEAN_ERROR_UNKNOWN -1
+#define MDCLEAN_ERROR_HEADERNOTFOUND -2
+#define MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE -3
+#define MDCLEAN_ERROR_FILECREATIONERROR -4
+#define MDCLEAN_ERROR_FILEWRITEFAILURE -5
+#define MDCLEAN_ERROR_BOUNDARYNOTFOUND -6
+#define MDCLEAN_ERROR_CONTENTTOOLARGE -7
+#define MDCLEAN_ERROR_MIMEPARSEFAILURE -8
+
+static const char * mdclean_geterrordescription(int error_code) {
+	switch (error_code) {
+	case MDCLEAN_ERROR_NOERROR:
+		return "No error";
+	case MDCLEAN_ERROR_UNKNOWN:
+		return "Unknown error";
+	case MDCLEAN_ERROR_HEADERNOTFOUND:
+		return "Header not found";
+	case MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE:
+		return "Memory allocation failure";
+	case MDCLEAN_ERROR_FILECREATIONERROR:
+		return "File creation error";
+	case MDCLEAN_ERROR_FILEWRITEFAILURE:
+		return "File write failure";
+	case MDCLEAN_ERROR_BOUNDARYNOTFOUND:
+		return "Boundary not found";
+	case MDCLEAN_ERROR_CONTENTTOOLARGE:
+		return "Content too large";
+	case MDCLEAN_ERROR_MIMEPARSEFAILURE:
+		return "MIME parse failure";
+	default:
+	}
+	return "error_code out of range";
+}
 
 /*
- * Receive all the data from the input stream and write it to a file
+ * Receive all the data from the input stream
+ * save it to a memory buffer
+ * and write it to a file
  */
 int save_posted_data(FCGX_Request * req) {
 	char * read_buffer = NULL;
+	size_t read_buffer_size = 0;
+	size_t read_buffer_pos = 0;
 	char * content_type;
 	char * temp_filename = NULL;
+	char * boundary = NULL;;
 	int res = -1;
+	int rc;
 	int fd = -1;
 	size_t bytes_read, bytes_read_total;
+	size_t partlist_idx;
 	ssize_t bytes_written;
+	mimeparse_part * partlist = NULL;
+	size_t partlist_size;
 	content_type = FCGX_GetParam("CONTENT_TYPE", req->envp);
-	if (content_type == NULL) { goto error; }
+	if (content_type == NULL || strlen(content_type) < 6) { res = MDCLEAN_ERROR_HEADERNOTFOUND; goto error; }
+	rc = mimeparse_getboundary(&boundary, content_type, strlen(content_type));
+	if (rc) { res = MDCLEAN_ERROR_BOUNDARYNOTFOUND; goto error; }
 	read_buffer = malloc(READ_BUFFER_SIZE);
-	if (!read_buffer) { goto error; }
+	if (!read_buffer) { res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE; goto error; }
+	read_buffer_size = READ_BUFFER_SIZE;
 	temp_filename = strdup("/tmp/mdclean_data.XXXXXX");
-	if (!temp_filename) { goto error; }
+	if (!temp_filename) { res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE; goto error; }
 	fd = mkstemp(temp_filename);
-	if (fd == -1) { goto error; }
+	if (fd == -1) { res = MDCLEAN_ERROR_FILECREATIONERROR; goto error; }
 	bytes_read_total = 0;
 	do {
+		if (read_buffer_pos + READ_BUFFER_BLOCK_SIZE > read_buffer_size) {
+			if (read_buffer_pos + READ_BUFFER_BLOCK_SIZE > READ_BUFFER_MAX_SIZE) {
+				res = MDCLEAN_ERROR_CONTENTTOOLARGE;
+				goto error;
+			}
+			char * new_read_buffer = realloc(read_buffer, read_buffer_size + READ_BUFFER_BLOCK_SIZE);
+			if (new_read_buffer == NULL) {
+				res = MDCLEAN_ERROR_MEMORYALLOCATIONFAILURE;
+				goto error;
+			}
+			read_buffer = new_read_buffer;
+			read_buffer_size = read_buffer_size + READ_BUFFER_BLOCK_SIZE;
+		}
 		// Despite the name this function is binary safe.
-		bytes_read = FCGX_GetStr(read_buffer, READ_BUFFER_SIZE, req->in);
+		bytes_read = FCGX_GetStr(read_buffer + read_buffer_pos, READ_BUFFER_BLOCK_SIZE, req->in);
+		// TODO: the whole file is not required anymore
 		if (bytes_read) {
-			bytes_written = write(fd, read_buffer, bytes_read);
+			bytes_written = write(fd, read_buffer + read_buffer_pos, bytes_read);
 			if (bytes_written != bytes_read) {
+				res = MDCLEAN_ERROR_FILEWRITEFAILURE;
 				goto error;
 			}
 			bytes_read_total += bytes_read;
 		}
+		if (bytes_read) {
+			read_buffer_pos = read_buffer_pos + bytes_read;
+		}
 	} while (bytes_read);
+	partlist = mimeparse_parseparts(read_buffer, read_buffer_pos, boundary, &partlist_size);
+	if (partlist == NULL) {
+		res = MDCLEAN_ERROR_MIMEPARSEFAILURE;
+		goto error;
+	}
+	for (partlist_idx = 0; partlist_idx < partlist_size; partlist_idx++) {
+		mimeparse_contentdispositionheader contentdisp =
+				mimeparse_parsecontentdisposition(partlist[partlist_idx].header_start,
+				partlist[partlist_idx].content_start - partlist[partlist_idx].header_start);
+		if (contentdisp.filename) {
+			fprintf(stderr, "uploaded filename: %.*s\n", (int)contentdisp.filename_len, contentdisp.filename);
+		}
+	}
 	res = 0;
 	FCGX_FPrintF(req->out,
 			"Status: 200\r\n"
@@ -48,7 +131,8 @@ int save_posted_data(FCGX_Request * req) {
 			"<!DOCTYPE html>\r\n"
 			"<html><head></head><body>\r\n"
 			"<h1>POST Data Received</h1>\r\n"
-			"<p>Received %d bytes of POST data, written to %s</p>"
+			"<p>Received %d bytes of POST data, written to %s</p>\r\n"
+			"<p><a href=\"posttest\">Return to form page</a></p>\r\n"
 			"</body></html>\r\n",
 			(int)bytes_read_total,
 			temp_filename);
@@ -68,9 +152,15 @@ error:
 			"<!DOCTYPE html>\r\n"
 			"<html><head></head><body>\r\n"
 			"<h1>FastCGI Server Error</h1>\r\n"
-			"</body></html>\r\n");
+			"<p>%s</p>\r\n"
+			"</body></html>\r\n",
+			mdclean_geterrordescription(res));
+	fprintf(stderr, "stderr: save_posted_data() %d: %s\n", res, mdclean_geterrordescription(res));
 finish:
 	FCGX_FFlush(req->out);
+	if (partlist) {
+		free(partlist);
+	}
 	if (fd != -1) {
 		close(fd);
 	}
@@ -79,6 +169,9 @@ finish:
 	}
 	if (read_buffer) {
 		free(read_buffer);
+	}
+	if (boundary) {
+		free(boundary);
 	}
 	return res;
 }

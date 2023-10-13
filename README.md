@@ -19,6 +19,6 @@ for nginx see the settings in `nginx/nginx.conf.template` for an example.
 
 ### Docker
 
-    DOCKER_BUILDKIT=0 docker build --tag mdclean:0.0.2 --file Dockerfile .
-    docker run --rm -i -t -p 8080:8080 -e PORT=8080 mdclean:0.0.2
+    docker build --progress=plain --tag mdclean:0.0.5 --file Dockerfile .
+    docker run --rm --name mdcleantest -i -t -p 8080:8080 -e PORT=8080 mdclean:0.0.5
 
